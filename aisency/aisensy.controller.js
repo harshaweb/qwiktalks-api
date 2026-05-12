@@ -255,6 +255,66 @@ export const getWhatsappFlows = async (req, res) => {
   }
 };
 
+export const createWaTemplate = async (req, res) => {
+  try {
+    const { name, category, language, components } = req.body;
+    if (!name || !category || !language || !components) {
+      return res.status(400).json({ success: false, message: 'name, category, language, and components are required' });
+    }
+    const result = await aisensyService.createWaTemplate(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] createWaTemplate error:', error.message);
+    return res.status(error.status || 500).json({ success: false, message: error.message, error: error.data || error.message });
+  }
+};
+
+export const getTemplates = async (req, res) => {
+  try {
+    const result = await aisensyService.getTemplates(req.query);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] getTemplates error:', error.message);
+    return res.status(error.status || 500).json({ success: false, message: error.message, error: error.data || error.message });
+  }
+};
+
+export const getTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const result = await aisensyService.getTemplate(templateId);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] getTemplate error:', error.message);
+    return res.status(error.status || 500).json({ success: false, message: error.message, error: error.data || error.message });
+  }
+};
+
+export const editTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const result = await aisensyService.editTemplate(templateId, req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] editTemplate error:', error.message);
+    return res.status(error.status || 500).json({ success: false, message: error.message, error: error.data || error.message });
+  }
+};
+
+export const deleteWaTemplate = async (req, res) => {
+  try {
+    const { name, hsm_id } = req.query;
+    if (!name && !hsm_id) {
+      return res.status(400).json({ success: false, message: 'name or hsm_id is required' });
+    }
+    const result = await aisensyService.deleteWaTemplate(name, hsm_id);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] deleteWaTemplate error:', error.message);
+    return res.status(error.status || 500).json({ success: false, message: error.message, error: error.data || error.message });
+  }
+};
+
 export const getCatalog = async (req, res) => {
   console.log('[wapi-api Aisensy Controller] Received getCatalog request:', req.query);
   try {

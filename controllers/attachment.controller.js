@@ -2,6 +2,7 @@ import { Attachment, User, Setting } from '../models/index.js';
 import fs from 'fs';
 import path from 'path';
 import { deleteFile } from '../utils/aws-storage.js';
+import aisensyService from '../aisency/aisensy.service.js';
 
 const SORT_ORDER = {
   ASC: 1,
@@ -89,8 +90,31 @@ export const createAttachment = async (req, res) => {
       }
 
       const attachment = await Attachment.create(attachmentData);
-      
+
       await User.findByIdAndUpdate(userId, { $inc: { storage_used: attachment.fileSize } });
+
+      // Upload to AiSensy and store media ID (non-blocking)
+      try {
+        let fileBuffer = null;
+        if (isS3) {
+          const resp = await fetch(relativePath);
+          fileBuffer = Buffer.from(await resp.arrayBuffer());
+        } else {
+          const absPath = path.join(process.cwd(), relativePath.replace(/^\//, ''));
+          if (fs.existsSync(absPath)) fileBuffer = fs.readFileSync(absPath);
+        }
+
+        if (fileBuffer) {
+          const aisensyResult = await aisensyService.uploadMedia(fileBuffer, file.originalname, file.mimetype);
+          if (aisensyResult?.id) {
+            attachment.aisensy_media_id = aisensyResult.id;
+            await attachment.save();
+            console.log(`[createAttachment] AiSensy media id stored: ${aisensyResult.id}`);
+          }
+        }
+      } catch (aisensyError) {
+        console.error('[createAttachment] AiSensy upload failed (non-blocking):', aisensyError.message);
+      }
 
       attachments.push({
         ...attachment.toObject(),
@@ -310,6 +334,15 @@ export const deleteAttachment = async (req, res) => {
 
     await Attachment.deleteOne({ _id: id });
 
+    if (attachment.aisensy_media_id) {
+      try {
+        await aisensyService.deleteMedia(attachment.aisensy_media_id);
+        console.log(`[deleteAttachment] AiSensy media deleted: ${attachment.aisensy_media_id}`);
+      } catch (aisensyError) {
+        console.error('[deleteAttachment] AiSensy delete failed (non-blocking):', aisensyError.message);
+      }
+    }
+
     const setting = await Setting.findOne().select('restore_storage_on_delete').lean();
     const restoreStorage = setting?.restore_storage_on_delete !== false;
     if (restoreStorage) {
@@ -354,6 +387,14 @@ export const bulkDeleteAttachments = async (req, res) => {
 
     for (const attachment of attachments) {
       await deleteFile(attachment.fileUrl);
+      if (attachment.aisensy_media_id) {
+        try {
+          await aisensyService.deleteMedia(attachment.aisensy_media_id);
+          console.log(`[bulkDeleteAttachments] AiSensy media deleted: ${attachment.aisensy_media_id}`);
+        } catch (aisensyError) {
+          console.error('[bulkDeleteAttachments] AiSensy delete failed (non-blocking):', aisensyError.message);
+        }
+      }
     }
 
     const deleteResult = await Attachment.deleteMany({

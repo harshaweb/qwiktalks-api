@@ -1532,6 +1532,14 @@ export const connectWhatsApp = async (req, res) => {
         });
       }
 
+      // Notify AiSensy about the Facebook access token (fire-and-forget)
+      if (waba.whatsapp_business_account_id) {
+        aisensyService.submitFacebookAccessToken({
+          user_id: userId.toString(),
+          waba_app_id: waba.whatsapp_business_account_id
+        }).catch(err => console.error('[WABA Connect] AiSensy submitFacebookAccessToken failed:', err.message));
+      }
+
       return res.json({
         success: true,
         data: {
@@ -1728,6 +1736,14 @@ export const getEmbbededSignupConnection = async (req, res) => {
       });
     }
 
+    // Notify AiSensy about the Facebook access token (fire-and-forget)
+    if (waba.whatsapp_business_account_id) {
+      aisensyService.submitFacebookAccessToken({
+        user_id: userId.toString(),
+        waba_app_id: waba.whatsapp_business_account_id
+      }).catch(err => console.error('[WABA Embedded Signup] AiSensy submitFacebookAccessToken failed:', err.message));
+    }
+
     return res.json({
       success: true,
       data: {
@@ -1781,44 +1797,16 @@ export const getUserConnections = async (req, res) => {
           .sort({ created_at: -1 })
           .lean();
 
-        const enrichedPhoneNumbers = await Promise.all(
-          phoneNumbers.map(async (phone) => {
-            let verified_name = phone.verified_name;
-            let quality_rating = phone.quality_rating;
-
-            try {
-              const response = await axios.get(
-                `https://graph.facebook.com/v22.0/${phone.phone_number_id}`,
-                {
-                  params: {
-                    fields: 'verified_name,quality_rating'
-                  },
-                  headers: {
-                    Authorization: `Bearer ${waba.access_token}`
-                  }
-                }
-              );
-              verified_name = response.data.verified_name || verified_name;
-              quality_rating = response.data.quality_rating || quality_rating;
-            } catch (err) {
-              console.error(
-                `Failed to fetch WhatsApp details for ${phone.phone_number_id}`,
-                err.message
-              );
-            }
-
-            return {
-              id: phone._id.toString(),
-              phone_number_id: phone.phone_number_id,
-              display_phone_number: phone.display_phone_number,
-              verified_name,
-              quality_rating,
-              is_active: phone.is_active,
-              created_at: phone.created_at,
-              updated_at: phone.updated_at
-            };
-          })
-        );
+        const enrichedPhoneNumbers = phoneNumbers.map((phone) => ({
+          id: phone._id.toString(),
+          phone_number_id: phone.phone_number_id,
+          display_phone_number: phone.display_phone_number,
+          verified_name: phone.verified_name || 'N/A',
+          quality_rating: phone.quality_rating || 'N/A',
+          is_active: phone.is_active,
+          created_at: phone.created_at,
+          updated_at: phone.updated_at
+        }));
 
         return {
           id: waba._id.toString(),
@@ -1890,40 +1878,11 @@ export const getMyPhoneNumbers = async (req, res) => {
       .sort({ created_at: -1 })
       .lean();
 
-    const enrichedPhoneNumbers = await Promise.all(
-      allPhoneNumbers.map(async (phone) => {
-        let verified_name = phone.verified_name;
-        let quality_rating = phone.quality_rating;
-
-        if (phone.waba_id?.access_token) {
-          try {
-            const response = await axios.get(
-              `https://graph.facebook.com/v22.0/${phone.phone_number_id}`,
-              {
-                params: { fields: "verified_name,quality_rating" },
-                headers: {
-                  Authorization: `Bearer ${phone.waba_id.access_token}`
-                }
-              }
-            );
-
-            verified_name = response.data.verified_name || verified_name;
-            quality_rating = response.data.quality_rating || quality_rating;
-          } catch (err) {
-            console.error(
-              `Failed to fetch WhatsApp details for ${phone.phone_number_id}`,
-              err.message
-            );
-          }
-        }
-
-        return {
-          display_phone_number: phone.display_phone_number,
-          id: phone._id,
-          is_primary: phone.is_primary
-        };
-      })
-    );
+    const enrichedPhoneNumbers = allPhoneNumbers.map((phone) => ({
+      display_phone_number: phone.display_phone_number,
+      id: phone._id,
+      is_primary: phone.is_primary
+    }));
 
     const sortedPhoneNumbers = enrichedPhoneNumbers.sort((a, b) => {
       if (a.is_primary && !b.is_primary) return -1;
@@ -1967,53 +1926,54 @@ export const getWabaPhoneNumbers = async (req, res) => {
       });
     }
 
-    // Sync phone numbers from AiSensy
-    try {
-      const aisensyResult = await aisensyService.getPhoneNumbers(userId.toString());
-      if (aisensyResult.success && Array.isArray(aisensyResult.data)) {
-        for (const phoneData of aisensyResult.data) {
-          const existingPhone = await WhatsappPhoneNumber.findOne({
-            phone_number_id: phoneData.id,
-            user_id: userId,
-            deleted_at: null
-          });
-
-          const qualityRating = phoneData.quality_score?.score || phoneData.quality_rating || '';
-
-          if (existingPhone) {
-            existingPhone.display_phone_number = phoneData.display_phone_number || existingPhone.display_phone_number;
-            existingPhone.verified_name = phoneData.verified_name || existingPhone.verified_name;
-            existingPhone.quality_rating = qualityRating;
-            if (phoneData.status === 'CONNECTED') {
-              existingPhone.is_active = true;
-            }
-            await existingPhone.save();
-          } else {
-            await WhatsappPhoneNumber.create({
-              user_id: userId,
-              waba_id: wabaId,
+    // Sync phone numbers from AiSensy in the background (fire-and-forget)
+    (async () => {
+      try {
+        const aisensyResult = await aisensyService.getPhoneNumbers(userId.toString());
+        if (aisensyResult.success && Array.isArray(aisensyResult.data)) {
+          for (const phoneData of aisensyResult.data) {
+            const existingPhone = await WhatsappPhoneNumber.findOne({
               phone_number_id: phoneData.id,
-              display_phone_number: phoneData.display_phone_number || '',
-              verified_name: phoneData.verified_name || '',
-              quality_rating: qualityRating,
-              is_active: phoneData.status === 'CONNECTED',
-              is_primary: false
+              user_id: userId,
+              deleted_at: null
             });
-          }
-        }
-        console.log(`[getWabaPhoneNumbers] Synced ${aisensyResult.data.length} phone numbers from AiSensy for user ${userId}`);
-      }
 
-      // Mark WABA as AiSensy provider if it has no access_token
-      if (!waba.access_token && waba.provider !== 'aisensy') {
-        waba.provider = 'aisensy';
-        await waba.save();
-        console.log(`[getWabaPhoneNumbers] Set WABA ${wabaId} provider to aisensy`);
+            const qualityRating = phoneData.quality_score?.score || phoneData.quality_rating || '';
+
+            if (existingPhone) {
+              existingPhone.display_phone_number = phoneData.display_phone_number || existingPhone.display_phone_number;
+              existingPhone.verified_name = phoneData.verified_name || existingPhone.verified_name;
+              existingPhone.quality_rating = qualityRating;
+              if (phoneData.status === 'CONNECTED') {
+                existingPhone.is_active = true;
+              }
+              await existingPhone.save();
+            } else {
+              await WhatsappPhoneNumber.create({
+                user_id: userId,
+                waba_id: wabaId,
+                phone_number_id: phoneData.id,
+                display_phone_number: phoneData.display_phone_number || '',
+                verified_name: phoneData.verified_name || '',
+                quality_rating: qualityRating,
+                is_active: phoneData.status === 'CONNECTED',
+                is_primary: false
+              });
+            }
+          }
+          console.log(`[getWabaPhoneNumbers] Synced ${aisensyResult.data.length} phone numbers from AiSensy for user ${userId}`);
+        }
+
+        // Mark WABA as AiSensy provider if it has no access_token
+        if (!waba.access_token && waba.provider !== 'aisensy') {
+          waba.provider = 'aisensy';
+          await waba.save();
+          console.log(`[getWabaPhoneNumbers] Set WABA ${wabaId} provider to aisensy`);
+        }
+      } catch (syncError) {
+        console.error('[getWabaPhoneNumbers] Error syncing from AiSensy:', syncError.message);
       }
-    } catch (syncError) {
-      console.error('[getWabaPhoneNumbers] Error syncing from AiSensy:', syncError.message);
-      // Continue with local data
-    }
+    })();
 
     const totalPhoneNumbers = await WhatsappPhoneNumber.countDocuments({
       user_id: userId,
@@ -2031,42 +1991,14 @@ export const getWabaPhoneNumbers = async (req, res) => {
       .limit(limit)
       .lean();
 
-    const enrichedPhoneNumbers = await Promise.all(
-      phoneNumbers.map(async (phone) => {
-        let verified_name = phone.verified_name;
-        let quality_rating = phone.quality_rating;
-
-        try {
-          const response = await axios.get(
-            `https://graph.facebook.com/v22.0/${phone.phone_number_id}`,
-            {
-              params: {
-                fields: 'verified_name,quality_rating'
-              },
-              headers: {
-                Authorization: `Bearer ${waba.access_token}`
-              }
-            }
-          );
-          verified_name = response.data.verified_name || verified_name;
-          quality_rating = response.data.quality_rating || quality_rating;
-        } catch (err) {
-          console.error(
-            `Failed to fetch WhatsApp details for ${phone.phone_number_id}`,
-            err.message
-          );
-        }
-
-        return {
-          id: phone._id,
-          phone_number_id: phone.phone_number_id,
-          verified_name: verified_name ?? "N/A",
-          quality_rating: quality_rating ?? "N/A",
-          display_phone_number: phone.display_phone_number,
-          is_primary: phone.is_primary
-        };
-      })
-    );
+    const enrichedPhoneNumbers = phoneNumbers.map((phone) => ({
+      id: phone._id,
+      phone_number_id: phone.phone_number_id,
+      verified_name: phone.verified_name || 'N/A',
+      quality_rating: phone.quality_rating || 'N/A',
+      display_phone_number: phone.display_phone_number,
+      is_primary: phone.is_primary
+    }));
 
     const sortedPhoneNumbers = enrichedPhoneNumbers.sort((a, b) => {
       if (a.is_primary && !b.is_primary) return -1;

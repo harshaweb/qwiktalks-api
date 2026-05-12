@@ -459,7 +459,6 @@ export const getProductsFromCatalog = async (req, res) => {
     const { catalog_id } = req.params;
 
     const { page, limit, skip } = parsePaginationParams(req.query);
-    const { sortField, sortOrder } = parseSortParams(req.query);
     const searchTerm = req.query.search || '';
     const searchQuery = buildSearchQuery(searchTerm);
 
@@ -470,110 +469,52 @@ export const getProductsFromCatalog = async (req, res) => {
     });
 
     if (!catalog) {
-      return res.status(404).json({
-        success: false,
-        error: 'Catalog not found or does not belong to user'
-      });
+      return res.status(404).json({ success: false, error: 'Catalog not found or does not belong to user' });
     }
 
-    const waba = await WhatsappWaba.findById(catalog.waba_id);
+    // Fetch from AiSensy via aisency-api and sync to DB
+    try {
+      console.log(`[getProductsFromCatalog] Syncing from AiSensy for catalog: ${catalog.catalog_id}`);
+      const aisensyResult = await aisensyService.getProducts(catalog.catalog_id);
+      const aisensyProducts = aisensyResult.products || [];
 
-    if (!waba) {
-      return res.status(404).json({
-        success: false,
-        error: 'WABA not found'
-      });
-    }
-
-    let url = `https://graph.facebook.com/${API_VERSION}/${catalog.catalog_id}/products?fields=id,name,fb_product_category,retailer_product_group_id,description,price,sale_price,currency,availability,condition,image_url,url,brand,category,retailer_id,additional_variant_attributes,product_variants_group_id,visibility,video_url,main_image_url,images,prices,variants,product_type&limit=${limit}&offset=${skip}`;
-
-    if (searchTerm) {
-      url += `&q=${encodeURIComponent(searchTerm)}`;
-    }
-
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${waba.access_token}`,
-        'Content-Type': 'application/json'
+      for (const product of aisensyProducts) {
+        await syncProductWithDatabase({
+          id: product.id,
+          name: product.name,
+          description: product.description || '',
+          price: product.price || 0,
+          sale_price: product.sale_price || 0,
+          currency: product.currency || 'INR',
+          availability: product.availability || 'in stock',
+          condition: product.condition || 'new',
+          image_url: product.image_url || '',
+          url: product.url || '',
+          brand: product.brand || '',
+          category: product.category || '',
+          retailer_id: product.retailer_id || product.id,
+          retailer_product_group_id: null
+        }, catalog._id, userId);
       }
-    });
-
-    if (response.data && Array.isArray(response.data.data)) {
-
-      for (const product of response.data.data) {
-
-        if (product.deleted_at) continue;
-
-
-        if (product.product_variants_group_id) continue;
-
-        await syncProductWithDatabase(product, catalog._id, userId);
-      }
+      console.log(`[getProductsFromCatalog] Synced ${aisensyProducts.length} products`);
+    } catch (syncError) {
+      console.error('[getProductsFromCatalog] AiSensy sync failed:', syncError.message);
     }
 
     const dbFilter = {
       user_id: userId,
       catalog_id: catalog._id,
       deleted_at: null,
-      product_variants_group_id: { $exists: false }
+      ...searchQuery
     };
 
-    const combinedFilter = { ...dbFilter, ...searchQuery };
-
-    const products = await EcommerceProduct.aggregate([
-      {
-        $match: {
-          user_id: new mongoose.Types.ObjectId(userId),
-          catalog_id: new mongoose.Types.ObjectId(catalog._id),
-          deleted_at: null
-        }
-      },
-      {
-        $group: {
-          _id: "$retailer_product_group_id",
-          products: { $push: "$$ROOT" }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          product: { $arrayElemAt: ["$products", 0] },
-          variants: {
-            $cond: [
-              { $gt: [{ $size: "$products" }, 1] },
-              {
-                $slice: [
-                  "$products",
-                  1,
-                  { $subtract: [{ $size: "$products" }, 1] }
-                ]
-              },
-              []
-            ]
-          }
-        }
-      },
-      {
-        $addFields: {
-          "product.variants": "$variants"
-        }
-      },
-      {
-        $replaceRoot: { newRoot: "$product" }
-      },
-
-      {
-        $project: {
-          meta_data: 0,
-          "variants.meta_data": 0
-        }
-      },
-
-      { $skip: skip },
-      { $limit: limit }
-    ]);
-
-    const totalDbCount = await EcommerceProduct.countDocuments(combinedFilter);
+    const totalDbCount = await EcommerceProduct.countDocuments(dbFilter);
+    const products = await EcommerceProduct.find(dbFilter)
+      .select('-meta_data')
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
     return res.json({
       success: true,
@@ -583,6 +524,7 @@ export const getProductsFromCatalog = async (req, res) => {
           currentPage: page,
           totalPages: Math.ceil(totalDbCount / limit),
           totalItems: totalDbCount,
+          total: totalDbCount,
           itemsPerPage: limit
         }
       }
@@ -593,7 +535,7 @@ export const getProductsFromCatalog = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to get products from catalog',
-      message: error.response?.data.error.error_user_msg || error.message,
+      message: error.message,
       details: error.response?.data || error.message
     });
   }
@@ -613,42 +555,53 @@ export const createProductInCatalog = async (req, res) => {
     });
 
     if (!catalog) {
-      return res.status(404).json({
-        success: false,
-        error: 'Catalog not found or does not belong to user'
-      });
-    }
-
-    const waba = await WhatsappWaba.findById(catalog.waba_id);
-
-    if (!waba) {
-      return res.status(404).json({
-        success: false,
-        error: 'WABA not found'
-      });
+      return res.status(404).json({ success: false, error: 'Catalog not found or does not belong to user' });
     }
 
     if (!productData.retailer_id) {
-      return res.status(400).json({
-        success: false,
-        error: 'retailer_id is required for the product'
-      });
+      return res.status(400).json({ success: false, error: 'retailer_id is required for the product' });
     }
 
-    const response = await createProductInCatalogFromAPI(catalog.catalog_id, productData, waba.access_token);
+    const resolvedImageUrl = productData.image_url ||
+      (Array.isArray(productData.image_urls) ? productData.image_urls.find(u => u?.trim()) : null) || '';
+
+    if (!resolvedImageUrl) {
+      return res.status(400).json({ success: false, error: 'image_url is required for the product' });
+    }
+
+    // Delegate to aisency-api
+    const aisensyPayload = {
+      catalogId: catalog.catalog_id,
+      name: productData.name,
+      category: productData.category || '',
+      currency: productData.currency || 'INR',
+      image_url: resolvedImageUrl,
+      price: String(productData.price),
+      retailer_id: productData.retailer_id,
+      description: productData.description || '',
+      url: productData.url || '',
+      brand: productData.brand || '',
+      ...(productData.sale_price && { sale_price: String(productData.sale_price) }),
+      ...(productData.sale_price_start_date && { sale_price_start_date: productData.sale_price_start_date }),
+      ...(productData.sale_price_end_date && { sale_price_end_date: productData.sale_price_end_date })
+    };
+
+    const aisensyResponse = await aisensyService.createProduct(aisensyPayload);
+    const externalProductId = aisensyResponse.product?.id || aisensyResponse.id;
+    console.log(`[createProductInCatalog] Product created via AiSensy, id: ${externalProductId}`);
 
     const newProduct = await EcommerceProduct.create({
       user_id: userId,
       catalog_id: catalog._id,
-      product_external_id: response.id,
+      product_external_id: externalProductId,
       name: productData.name || '',
       description: productData.description || '',
       price: parseFloat(productData.price) || 0,
       sale_price: productData.sale_price || 0,
-      currency: productData.currency || 'USD',
+      currency: productData.currency || 'INR',
       availability: productData.availability || 'in stock',
       condition: productData.condition || 'new',
-      image_urls: Array.isArray(productData.image_urls) ? productData.image_urls : [productData.image_urls].filter(Boolean),
+      image_urls: [resolvedImageUrl, ...(Array.isArray(productData.image_urls) ? productData.image_urls.filter(u => u?.trim() && u !== resolvedImageUrl) : [])],
       url: productData.url || '',
       category: productData.category || '',
       brand: productData.brand || '',
@@ -661,9 +614,8 @@ export const createProductInCatalog = async (req, res) => {
       success: true,
       message: 'Product created successfully',
       data: {
-        product_id: response.id,
-        product_db_id: newProduct._id,
-        response: response
+        product_id: externalProductId,
+        product_db_id: newProduct._id
       }
     });
   } catch (error) {
@@ -671,8 +623,8 @@ export const createProductInCatalog = async (req, res) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to create product in catalog',
-      message: error.response?.data.error.error_user_msg || error.message,
-      details: error.response?.data || error.message
+      message: error.message,
+      details: error.data || error.message
     });
   }
 };

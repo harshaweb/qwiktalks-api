@@ -10,7 +10,12 @@ import {
   createCatalog,
   getCatalog,
   getFlows,
-  getWhatsappFlows
+  getWhatsappFlows,
+  createWaTemplate,
+  getTemplates,
+  getTemplate,
+  editTemplate,
+  deleteWaTemplate
 } from './aisensy.controller.js';
 
 const router = express.Router();
@@ -26,5 +31,11 @@ router.post('/catalog', createCatalog);
 router.get('/catalog', getCatalog);
 router.get('/flows', getFlows);
 router.get('/whatsapp-flows', getWhatsappFlows);
+
+router.post('/wa-template', createWaTemplate);
+router.get('/wa-templates', getTemplates);
+router.get('/wa-template/:templateId', getTemplate);
+router.post('/wa-template/:templateId', editTemplate);
+router.delete('/wa-template', deleteWaTemplate);
 
 export default router;

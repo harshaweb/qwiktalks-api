@@ -39,6 +39,15 @@ const attachmentSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  aisensy_media_id: {
+    type: String,
+    default: null
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: null
+  }
 }, {
   timestamps: true
 });
