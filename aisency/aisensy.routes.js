@@ -2,7 +2,6 @@ import express from 'express';
 import {
   createBusiness,
   createProject,
-  submitFacebookAccessToken,
   getPhoneNumbers,
   getPhoneNumber,
   getDisplayNameStatus,
@@ -23,7 +22,6 @@ const router = express.Router();
 
 router.post('/create-business', createBusiness);
 router.post('/create-project', createProject);
-router.post('/submit-facebook-access-token', submitFacebookAccessToken);
 router.get('/phone-numbers', getPhoneNumbers);
 router.get('/phone-number', getPhoneNumber);
 router.get('/display-name-status', getDisplayNameStatus);

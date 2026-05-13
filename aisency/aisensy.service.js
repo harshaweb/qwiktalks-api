@@ -53,32 +53,6 @@ class AisensyForwardingService {
     return data;
   }
 
-  async submitFacebookAccessToken(payload) {
-    const targetUrl = `${AISENCY_API_BASE_URL}/aisensy/submit-facebook-access-token`;
-    console.log('[wapi-api Aisensy Service] Forwarding submit Facebook access token to aisency-api:', targetUrl, 'Payload:', payload);
-
-    const response = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await response.json();
-    console.log('[wapi-api Aisensy Service] Submit Facebook access token response:', response.status, data);
-
-    if (!response.ok) {
-      const error = new Error(data.message || 'Aisensy submit Facebook access token failed');
-      error.status = response.status;
-      error.data = data;
-      throw error;
-    }
-
-    return data;
-  }
-
   async getPhoneNumbers(userId, projectId) {
     let targetUrl = `${AISENCY_API_BASE_URL}/aisensy/phone-numbers?user_id=${userId}`;
     if (projectId) targetUrl += `&projectId=${projectId}`;
