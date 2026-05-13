@@ -2030,22 +2030,23 @@ export const getWabaPhoneNumbers = async (req, res) => {
 
 export const submitWabaAppId = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.owner_id;
     const { waba_id } = req.body;
 
-    const waba = await WhatsappWaba.findOne({
-      _id: waba_id,
-      user_id: userId,
-      deleted_at: null
-    });
+    console.log('[submitWabaAppId] userId:', userId, 'waba_id:', waba_id);
+
+    const query = { user_id: userId, deleted_at: null, whatsapp_business_account_id: { $exists: true, $ne: null } };
+    if (waba_id) query._id = waba_id;
+
+    const waba = await WhatsappWaba.findOne(query);
+
+    console.log('[submitWabaAppId] WABA found:', waba ? `${waba._id} / ${waba.whatsapp_business_account_id}` : 'NOT FOUND');
 
     if (!waba) {
-      return res.status(404).json({ success: false, error: 'WABA not found' });
+      return res.status(404).json({ success: false, message: 'No connected WABA found for this user' });
     }
 
-    if (!waba.whatsapp_business_account_id) {
-      return res.status(400).json({ success: false, error: 'WABA has no whatsapp_business_account_id' });
-    }
+    console.log('[submitWabaAppId] Calling AiSensy with wabaAppId:', waba.whatsapp_business_account_id);
 
     const result = await aisensyService.submitFacebookAccessToken({
       user_id: userId.toString(),
@@ -2054,11 +2055,11 @@ export const submitWabaAppId = async (req, res) => {
 
     return res.json({ success: true, message: 'WABA App ID submitted to AiSensy successfully', data: result });
   } catch (error) {
-    console.error('[submitWabaAppId] Error:', error);
-    return res.status(500).json({
+    console.error('[submitWabaAppId] Error:', error.message);
+    const statusCode = error.status || error.response?.status || 500;
+    return res.status(statusCode).json({
       success: false,
-      error: 'Failed to submit WABA App ID',
-      message: error.message
+      message: error.data?.message || error.message || 'Failed to submit WABA App ID'
     });
   }
 };
