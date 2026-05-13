@@ -2028,6 +2028,41 @@ export const getWabaPhoneNumbers = async (req, res) => {
   }
 };
 
+export const submitWabaAppId = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { waba_id } = req.body;
+
+    const waba = await WhatsappWaba.findOne({
+      _id: waba_id,
+      user_id: userId,
+      deleted_at: null
+    });
+
+    if (!waba) {
+      return res.status(404).json({ success: false, error: 'WABA not found' });
+    }
+
+    if (!waba.whatsapp_business_account_id) {
+      return res.status(400).json({ success: false, error: 'WABA has no whatsapp_business_account_id' });
+    }
+
+    const result = await aisensyService.submitFacebookAccessToken({
+      user_id: userId.toString(),
+      waba_app_id: waba.whatsapp_business_account_id
+    });
+
+    return res.json({ success: true, message: 'WABA App ID submitted to AiSensy successfully', data: result });
+  } catch (error) {
+    console.error('[submitWabaAppId] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to submit WABA App ID',
+      message: error.message
+    });
+  }
+};
+
 export const updateConnection = async (req, res) => {
   try {
     const userId = req.user.owner_id;
@@ -2530,5 +2565,6 @@ export default {
   getWabaPhoneNumbers,
   getEmbbededSignupConnection,
   disconnectWhatsApp,
-  getWabaList
+  getWabaList,
+  submitWabaAppId
 };
