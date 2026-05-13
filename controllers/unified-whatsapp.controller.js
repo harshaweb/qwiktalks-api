@@ -1613,7 +1613,7 @@ export const connectWhatsApp = async (req, res) => {
 };
 
 export const getEmbbededSignupConnection = async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.owner_id;
   const { code, signupData, workspace_id } = req.body;
 
   if (!code || !signupData?.waba_id || !signupData?.phone_number_id || !signupData.business_id) {
@@ -1926,54 +1926,52 @@ export const getWabaPhoneNumbers = async (req, res) => {
       });
     }
 
-    // Sync phone numbers from AiSensy in the background (fire-and-forget)
-    (async () => {
-      try {
-        const aisensyResult = await aisensyService.getPhoneNumbers(userId.toString());
-        if (aisensyResult.success && Array.isArray(aisensyResult.data)) {
-          for (const phoneData of aisensyResult.data) {
-            const existingPhone = await WhatsappPhoneNumber.findOne({
-              phone_number_id: phoneData.id,
-              user_id: userId,
-              deleted_at: null
-            });
+    // Sync phone numbers from AiSensy synchronously before querying DB
+    try {
+      const aisensyResult = await aisensyService.getPhoneNumbers(userId.toString());
+      if (aisensyResult.success && Array.isArray(aisensyResult.data)) {
+        for (const phoneData of aisensyResult.data) {
+          const existingPhone = await WhatsappPhoneNumber.findOne({
+            phone_number_id: phoneData.id,
+            user_id: userId,
+            deleted_at: null
+          });
 
-            const qualityRating = phoneData.quality_score?.score || phoneData.quality_rating || '';
+          const qualityRating = phoneData.quality_score?.score || phoneData.quality_rating || '';
 
-            if (existingPhone) {
-              existingPhone.display_phone_number = phoneData.display_phone_number || existingPhone.display_phone_number;
-              existingPhone.verified_name = phoneData.verified_name || existingPhone.verified_name;
-              existingPhone.quality_rating = qualityRating;
-              if (phoneData.status === 'CONNECTED') {
-                existingPhone.is_active = true;
-              }
-              await existingPhone.save();
-            } else {
-              await WhatsappPhoneNumber.create({
-                user_id: userId,
-                waba_id: wabaId,
-                phone_number_id: phoneData.id,
-                display_phone_number: phoneData.display_phone_number || '',
-                verified_name: phoneData.verified_name || '',
-                quality_rating: qualityRating,
-                is_active: phoneData.status === 'CONNECTED',
-                is_primary: false
-              });
+          if (existingPhone) {
+            existingPhone.display_phone_number = phoneData.display_phone_number || existingPhone.display_phone_number;
+            existingPhone.verified_name = phoneData.verified_name || existingPhone.verified_name;
+            existingPhone.quality_rating = qualityRating;
+            if (phoneData.status === 'CONNECTED') {
+              existingPhone.is_active = true;
             }
+            await existingPhone.save();
+          } else {
+            await WhatsappPhoneNumber.create({
+              user_id: userId,
+              waba_id: wabaId,
+              phone_number_id: phoneData.id,
+              display_phone_number: phoneData.display_phone_number || '',
+              verified_name: phoneData.verified_name || '',
+              quality_rating: qualityRating,
+              is_active: phoneData.status === 'CONNECTED',
+              is_primary: false
+            });
           }
-          console.log(`[getWabaPhoneNumbers] Synced ${aisensyResult.data.length} phone numbers from AiSensy for user ${userId}`);
         }
-
-        // Mark WABA as AiSensy provider if it has no access_token
-        if (!waba.access_token && waba.provider !== 'aisensy') {
-          waba.provider = 'aisensy';
-          await waba.save();
-          console.log(`[getWabaPhoneNumbers] Set WABA ${wabaId} provider to aisensy`);
-        }
-      } catch (syncError) {
-        console.error('[getWabaPhoneNumbers] Error syncing from AiSensy:', syncError.message);
+        console.log(`[getWabaPhoneNumbers] Synced ${aisensyResult.data.length} phone numbers from AiSensy for user ${userId}`);
       }
-    })();
+
+      // Mark WABA as AiSensy provider if it has no access_token
+      if (!waba.access_token && waba.provider !== 'aisensy') {
+        waba.provider = 'aisensy';
+        await waba.save();
+        console.log(`[getWabaPhoneNumbers] Set WABA ${wabaId} provider to aisensy`);
+      }
+    } catch (syncError) {
+      console.error('[getWabaPhoneNumbers] Error syncing from AiSensy:', syncError.message);
+    }
 
     const totalPhoneNumbers = await WhatsappPhoneNumber.countDocuments({
       user_id: userId,
