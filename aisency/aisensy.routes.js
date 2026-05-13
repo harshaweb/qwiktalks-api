@@ -16,11 +16,13 @@ import {
   getTemplate,
   editTemplate,
   deleteWaTemplate,
-  submitFacebookAccessToken
+  submitFacebookAccessToken,
+  getBusiness
 } from './aisensy.controller.js';
 
 const router = express.Router();
 
+router.get('/business', getBusiness);
 router.post('/create-business', createBusiness);
 router.post('/create-project', createProject);
 router.get('/phone-numbers', getPhoneNumbers);

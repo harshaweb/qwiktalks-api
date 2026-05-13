@@ -1,6 +1,26 @@
 import aisensyService from './aisensy.service.js';
 import { EcommerceCatalog, WhatsappWaba, WhatsappFlow } from '../models/index.js';
 
+export const getBusiness = async (req, res) => {
+  console.log('[wapi-api Aisensy Controller] Received getBusiness request:', req.query);
+  try {
+    const { user_id } = req.query;
+    if (!user_id) {
+      return res.status(400).json({ success: false, message: 'user_id is required' });
+    }
+    const result = await aisensyService.getBusiness(user_id);
+    console.log('[wapi-api Aisensy Controller] getBusiness success');
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] getBusiness error:', error.message);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Failed to get business info',
+      error: error.data || error.message
+    });
+  }
+};
+
 export const createBusiness = async (req, res) => {
   console.log('[wapi-api Aisensy Controller] Received request body:', req.body);
   try {

@@ -1,6 +1,28 @@
 const AISENCY_API_BASE_URL = process.env.AISENCY_API_URL || 'http://localhost:5001';
 
 class AisensyForwardingService {
+  async getBusiness(userId) {
+    const targetUrl = `${AISENCY_API_BASE_URL}/aisensy/waba-info?user_id=${userId}`;
+    console.log('[wapi-api Aisensy Service] Forwarding getBusiness:', targetUrl);
+
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+
+    const data = await response.json();
+    console.log('[wapi-api Aisensy Service] getBusiness response:', response.status);
+
+    if (!response.ok) {
+      const error = new Error(data.message || data.error || 'Failed to get business info');
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+
+    return data;
+  }
+
   async createBusiness(payload) {
     const targetUrl = `${AISENCY_API_BASE_URL}/aisensy/create-business`;
     console.log('[wapi-api Aisensy Service] Forwarding to aisency-api:', targetUrl, 'Payload:', payload);
