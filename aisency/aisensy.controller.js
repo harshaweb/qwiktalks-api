@@ -315,6 +315,22 @@ export const deleteWaTemplate = async (req, res) => {
   }
 };
 
+export const submitFacebookAccessToken = async (req, res) => {
+  console.log('[wapi-api Aisensy Controller] Received submitFacebookAccessToken request:', req.body);
+  try {
+    const result = await aisensyService.submitFacebookAccessToken(req.body);
+    console.log('[wapi-api Aisensy Controller] submitFacebookAccessToken success:', result);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] submitFacebookAccessToken error:', error.message);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Failed to submit Facebook access token',
+      error: error.data || error.message
+    });
+  }
+};
+
 export const getCatalog = async (req, res) => {
   console.log('[wapi-api Aisensy Controller] Received getCatalog request:', req.query);
   try {

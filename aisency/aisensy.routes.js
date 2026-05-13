@@ -15,7 +15,8 @@ import {
   getTemplates,
   getTemplate,
   editTemplate,
-  deleteWaTemplate
+  deleteWaTemplate,
+  submitFacebookAccessToken
 } from './aisensy.controller.js';
 
 const router = express.Router();
@@ -37,5 +38,6 @@ router.get('/wa-templates', getTemplates);
 router.get('/wa-template/:templateId', getTemplate);
 router.post('/wa-template/:templateId', editTemplate);
 router.delete('/wa-template', deleteWaTemplate);
+router.post('/submit-facebook-access-token', submitFacebookAccessToken);
 
 export default router;
