@@ -11,14 +11,7 @@ class AisensyForwardingService {
     });
 
     const data = await response.json();
-    console.log('[wapi-api Aisensy Service] getBusiness response:', response.status);
-
-    if (!response.ok) {
-      const error = new Error(data.message || data.error || 'Failed to get business info');
-      error.status = response.status;
-      error.data = data;
-      throw error;
-    }
+    console.log('[wapi-api Aisensy Service] getBusiness response:', response.status, data);
 
     return data;
   }
