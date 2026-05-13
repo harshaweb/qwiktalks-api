@@ -1744,6 +1744,62 @@ export const getEmbbededSignupConnection = async (req, res) => {
       }).catch(err => console.error('[WABA Embedded Signup] AiSensy submitFacebookAccessToken failed:', err.message));
     }
 
+    // Subscribe to WhatsApp Business Account webhook topics (including SMB app onboarding fields)
+    try {
+      const appUrl = process.env.APP_URL || '';
+      const webhookCallbackUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/webhook/whatsapp` : '';
+
+      const getRes = await axios.get(
+        `https://graph.facebook.com/v22.0/${signupData.waba_id}/subscribed_apps`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      );
+
+      const subscribedApps = getRes.data?.data || [];
+      const ourApp = subscribedApps.find(app => app.id === APP_ID);
+      const currentFields = ourApp?.subscribed_fields || [];
+
+      const requiredFields = [
+        'messages',
+        'message_template_status_update',
+        'account_alerts',
+        'phone_number_name_update',
+        'template_category_update',
+        'messaging_hbm',
+        'user_notification',
+        'business_capability_update',
+        'channel_quality',
+        'message_template_quality',
+        'message_template_namespace_update',
+        'history',
+        'smb_app_state_sync',
+        'smb_message_echoes'
+      ];
+
+      const mergedFields = [...new Set([...currentFields, ...requiredFields])];
+
+      const subscribePayload = { subscribed_fields: mergedFields };
+      if (webhookCallbackUrl) {
+        subscribePayload.override_callback_uri = webhookCallbackUrl;
+      }
+
+      await axios.post(
+        `https://graph.facebook.com/v22.0/${signupData.waba_id}/subscribed_apps`,
+        subscribePayload,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      console.log('[Embedded Signup] WABA webhook topics subscribed:', mergedFields);
+    } catch (webhookErr) {
+      console.error('[Embedded Signup] Failed to subscribe webhook topics:', webhookErr.response?.data || webhookErr.message);
+    }
+
     return res.json({
       success: true,
       data: {

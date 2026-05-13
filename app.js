@@ -318,6 +318,15 @@ app.post("/webhook/whatsapp", (req, res) => {
       }
     });
     return res.sendStatus(200);
+  } else if (changes?.field === 'history') {
+    console.log('[Webhook] WhatsApp history sync received');
+    return res.sendStatus(200);
+  } else if (changes?.field === 'smb_app_state_sync') {
+    console.log('[Webhook] SMB app state sync received');
+    return res.sendStatus(200);
+  } else if (changes?.field === 'smb_message_echoes') {
+    console.log('[Webhook] SMB message echo received');
+    return res.sendStatus(200);
   } else {
     console.log("Unknown WhatsApp webhook type:", req.body);
     return res.sendStatus(200);
