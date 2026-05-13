@@ -33,6 +33,22 @@ export const createProject = async (req, res) => {
   }
 };
 
+export const submitFacebookAccessToken = async (req, res) => {
+  console.log('[wapi-api Aisensy Controller] Received submit Facebook access token request:', req.body);
+  try {
+    const result = await aisensyService.submitFacebookAccessToken(req.body);
+    console.log('[wapi-api Aisensy Controller] Submit Facebook access token success:', result);
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('[wapi-api Aisensy Controller] Submit Facebook access token error:', error.message);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || 'Failed to submit Facebook access token',
+      error: error.data || error.message
+    });
+  }
+};
+
 export const getPhoneNumbers = async (req, res) => {
   console.log('[wapi-api Aisensy Controller] Received getPhoneNumbers request:', req.query);
   try {
