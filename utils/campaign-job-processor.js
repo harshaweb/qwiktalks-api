@@ -421,6 +421,7 @@ export const processCampaignMessageJob = async (jobData) => {
     if (!wabaDoc || !wabaDoc.access_token) {
       console.log('[Campaign Job] No WABA access_token, routing to AiSensy');
       const aisensyPayload = {
+        user_id: userId,
         to: recipient.phone_number,
         type: 'template',
         template: {
@@ -449,6 +450,7 @@ export const processCampaignMessageJob = async (jobData) => {
         if (isPermissionError) {
           console.log('[Campaign Job] Business API permission error, falling back to AiSensy:', errorMessage);
           const aisensyPayload = {
+            user_id: userId,
             to: recipient.phone_number,
             type: 'template',
             template: {
