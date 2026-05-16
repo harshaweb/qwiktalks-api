@@ -8,6 +8,7 @@ import db from '../models/index.js';
 
 const AISENSY_WEBHOOK_URL = process.env.AISENSY_WEBHOOK_URL || 'https://api.qwiktalks.com/webhook/whatsapp';
 const AISENSY_API_BASE = process.env.AISENSY_DIRECT_BASE_URL || 'https://backend.aisensy.com';
+const AISENCY_API_BASE_URL = process.env.AISENCY_API_URL || 'http://localhost:5001';
 
 class AiSensyWebhookUpdater {
   /**
@@ -17,8 +18,8 @@ class AiSensyWebhookUpdater {
    */
   async updateWebhookForUser(user) {
     try {
-      // Get user's AiSensy token
-      const token = await this.getUserToken(user);
+      // Get user's AiSensy token via aisency-api
+      const token = await this.getUserTokenViaAisencyAPI(user._id || user.id);
       
       if (!token) {
         return {
@@ -68,93 +69,30 @@ class AiSensyWebhookUpdater {
   }
 
   /**
-   * Get AiSensy token for a user
-   * @param {Object} user - User object
+   * Get AiSensy token via aisency-api service
+   * @param {String} userId - User ID
    * @returns {String} AiSensy token
    */
-  async getUserToken(user) {
+  async getUserTokenViaAisencyAPI(userId) {
     try {
-      // Check if user has AiSensy configuration
-      // This might be stored in different places depending on your schema
-      
-      // Option 1: Check user settings
-      if (user.aisensy_token) {
-        return user.aisensy_token;
-      }
-
-      // Option 2: Check user metadata
-      if (user.metadata?.aisensy_token) {
-        return user.metadata.aisensy_token;
-      }
-
-      // Option 3: Check user settings model
-      const { UserSetting } = db;
-      if (UserSetting) {
-        const userSetting = await UserSetting.findOne({ user_id: user._id });
-        if (userSetting?.aisensy_token) {
-          return userSetting.aisensy_token;
-        }
-      }
-
-      // Option 4: Check AiSensy business model
-      const { AiSensyBusiness } = db;
-      if (AiSensyBusiness) {
-        const business = await AiSensyBusiness.findOne({ 
-          user_id: user._id,
-          deleted_at: null 
-        });
-        
-        if (business?.api_token) {
-          return business.api_token;
-        }
-      }
-
-      // Option 5: Generate token from assistant_id and client_id
-      // The token format from your example:
-      // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhc3Npc3RhbnRJZCI6IjY5ZjZmMjYwZTQ3ZTZjMGUxNWNhNjMxOCIsImNsaWVudElkIjoiNjlmNmVkYmFmMTY3ZTEzYTIyMDQ0Y2VhIiwid2ViaG9va1VybCI6Imh0dHBzOi8vYXBpLnF3aWt0YWxrcy5jb20vd2ViaG9vay93aGF0c2FwcCIsImlhdCI6MTc3ODk1NjYzNn0
-      // This contains: assistantId, clientId, webhookUrl, iat
-      
-      // Try to get from session or generate
-      if (user.aisensy_assistant_id || user.aisensy_client_id) {
-        return await this.generateAiSensyToken(user);
-      }
-
-      return null;
-
-    } catch (error) {
-      console.error('Error getting user token:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Generate AiSensy token from user credentials
-   * @param {Object} user - User object
-   * @returns {String} Generated token
-   */
-  async generateAiSensyToken(user) {
-    try {
-      // Try to get token from AiSensy login/auth endpoint
-      const response = await axios.post(
-        `${AISENSY_API_BASE}/auth/login`,
-        {
-          assistant_id: user.aisensy_assistant_id,
-          client_id: user.aisensy_client_id
-        },
+      // Call aisency-api to get the token
+      const response = await axios.get(
+        `${AISENCY_API_BASE_URL}/aisensy/get-token?user_id=${userId}`,
         {
           headers: {
-            'Content-Type': 'application/json'
+            'Accept': 'application/json'
           }
         }
       );
 
-      return response.data.token || response.data.access_token;
+      if (response.data && response.data.token) {
+        return response.data.token;
+      }
+
+      return null;
 
     } catch (error) {
-      console.error('Error generating AiSensy token:', error.message);
-      
-      // If login endpoint doesn't work, try to use stored token
-      // or return null to skip this user
+      console.error(`Error getting token via aisency-api for user ${userId}:`, error.message);
       return null;
     }
   }
