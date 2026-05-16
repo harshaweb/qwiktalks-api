@@ -87,7 +87,16 @@ class AiSensyWebhookUpdater {
         return user.metadata.aisensy_token;
       }
 
-      // Option 3: Check AiSensy business model
+      // Option 3: Check user settings model
+      const { UserSetting } = db;
+      if (UserSetting) {
+        const userSetting = await UserSetting.findOne({ user_id: user._id });
+        if (userSetting?.aisensy_token) {
+          return userSetting.aisensy_token;
+        }
+      }
+
+      // Option 4: Check AiSensy business model
       const { AiSensyBusiness } = db;
       if (AiSensyBusiness) {
         const business = await AiSensyBusiness.findOne({ 
@@ -100,9 +109,14 @@ class AiSensyWebhookUpdater {
         }
       }
 
-      // Option 4: Generate token from credentials
-      if (user.aisensy_assistant_id && user.aisensy_client_id) {
-        return await this.generateToken(user);
+      // Option 5: Generate token from assistant_id and client_id
+      // The token format from your example:
+      // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhc3Npc3RhbnRJZCI6IjY5ZjZmMjYwZTQ3ZTZjMGUxNWNhNjMxOCIsImNsaWVudElkIjoiNjlmNmVkYmFmMTY3ZTEzYTIyMDQ0Y2VhIiwid2ViaG9va1VybCI6Imh0dHBzOi8vYXBpLnF3aWt0YWxrcy5jb20vd2ViaG9vay93aGF0c2FwcCIsImlhdCI6MTc3ODk1NjYzNn0
+      // This contains: assistantId, clientId, webhookUrl, iat
+      
+      // Try to get from session or generate
+      if (user.aisensy_assistant_id || user.aisensy_client_id) {
+        return await this.generateAiSensyToken(user);
       }
 
       return null;
@@ -114,25 +128,33 @@ class AiSensyWebhookUpdater {
   }
 
   /**
-   * Generate AiSensy token from credentials
+   * Generate AiSensy token from user credentials
    * @param {Object} user - User object
    * @returns {String} Generated token
    */
-  async generateToken(user) {
+  async generateAiSensyToken(user) {
     try {
-      // If you have a token generation endpoint
+      // Try to get token from AiSensy login/auth endpoint
       const response = await axios.post(
-        `${AISENSY_API_BASE}/auth/generate-token`,
+        `${AISENSY_API_BASE}/auth/login`,
         {
           assistant_id: user.aisensy_assistant_id,
           client_id: user.aisensy_client_id
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
         }
       );
 
-      return response.data.token;
+      return response.data.token || response.data.access_token;
 
     } catch (error) {
-      console.error('Error generating token:', error);
+      console.error('Error generating AiSensy token:', error.message);
+      
+      // If login endpoint doesn't work, try to use stored token
+      // or return null to skip this user
       return null;
     }
   }

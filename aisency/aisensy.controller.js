@@ -140,7 +140,8 @@ export const sendMessage = async (req, res) => {
     if (!to || !type) {
       return res.status(400).json({ success: false, message: 'to and type are required' });
     }
-    const result = await aisensyService.sendMessage({ to, type, template, text });
+    const user_id = req.body.user_id || req.query.user_id;
+    const result = await aisensyService.sendMessage({ to, type, template, text, user_id });
     console.log('[wapi-api Aisensy Controller] sendMessage success');
     return res.status(200).json(result);
   } catch (error) {

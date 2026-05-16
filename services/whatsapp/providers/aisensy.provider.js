@@ -43,6 +43,7 @@ export default class AisensyProvider {
       payload = {
         to: recipientNumber,
         type: 'template',
+        user_id: userId,
         template: {
           name: templateName,
           language: {
@@ -59,6 +60,7 @@ export default class AisensyProvider {
       payload = {
         to: recipientNumber,
         type: 'text',
+        user_id: userId,
         text: { body: messageText || '' }
       };
     } else {
