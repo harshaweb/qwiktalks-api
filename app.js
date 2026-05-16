@@ -158,6 +158,7 @@ import appointmentRoutes from "./routes/appointment.routes.js";
 import paymentGatewayConfigRoutes from "./routes/payment-gateway-config.routes.js";
 import paymentWebhookRoutes from "./routes/payment-webhook.routes.js";
 import aisensyRoutes from "./aisency/aisensy.routes.js";
+import aisensyWebhookRoutes from "./routes/aisensy-webhook.routes.js";
 
 
 import { redirectShortLink } from "./controllers/short-link.controller.js";
@@ -273,6 +274,7 @@ app.use("/api/payments", paymentWebhookRoutes);
 
 app.use("/api/aisency", aisensyRoutes);
 
+app.use("/api/aisensy-webhook", aisensyWebhookRoutes);
 
 
 app.get("/short_link/wp/:code", redirectShortLink);

@@ -12,6 +12,7 @@ import './utils/system-settings.js';
 import { getSequenceQueue } from './queues/sequence-queue.js';
 import statusCronService from './cronjob/status.cronService.js';
 import trialPeriodCronService from './cronjob/trialPeriod.cronService.js';
+import { scheduleWebhookUpdates, updateWebhooksOnStartup } from './cronjob/update-aisensy-webhooks.cron.js';
 
 async function loadStripeKeysFromSettings() {
   try {
@@ -111,6 +112,13 @@ io.on('connection', (socket) => {
       console.log('Appointment reminder service started (1h interval)');
 
       getSequenceQueue().catch(err => console.error('Error starting sequence queue worker', err));
+      
+      // Schedule AiSensy webhook updates
+      scheduleWebhookUpdates();
+      console.log('AiSensy webhook update scheduler started');
+      
+      // Update webhooks on startup if enabled
+      updateWebhooksOnStartup();
     });
   } catch (err) {
     console.error('Error starting server:', err);
