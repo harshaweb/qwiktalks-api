@@ -44,6 +44,7 @@ export default class AisensyProvider {
         to: recipientNumber,
         type: 'template',
         user_id: userId,
+        recipient_type: 'individual',
         template: {
           name: templateName,
           language: {
@@ -61,6 +62,7 @@ export default class AisensyProvider {
         to: recipientNumber,
         type: 'text',
         user_id: userId,
+        recipient_type: 'individual',
         text: { body: messageText || '' }
       };
     } else {

@@ -165,7 +165,7 @@ class AisensyForwardingService {
 
   async sendMessage(payload) {
     const targetUrl = `${AISENCY_API_BASE_URL}/aisensy/messages`;
-    console.log('[wapi-api Aisensy Service] Forwarding sendMessage:', targetUrl);
+    console.log('[wapi-api Aisensy Service] Forwarding sendMessage:', targetUrl, 'Payload:', JSON.stringify(payload));
 
     const response = await fetch(targetUrl, {
       method: 'POST',
@@ -177,7 +177,7 @@ class AisensyForwardingService {
     });
 
     const data = await response.json();
-    console.log('[wapi-api Aisensy Service] sendMessage response:', response.status);
+    console.log('[wapi-api Aisensy Service] sendMessage response:', response.status, JSON.stringify(data));
 
     if (!response.ok) {
       const error = new Error(data.message || data.error || 'Failed to send message');

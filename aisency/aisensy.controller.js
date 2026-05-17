@@ -136,12 +136,12 @@ export const getProjectsByBusiness = async (req, res) => {
 export const sendMessage = async (req, res) => {
   console.log('[wapi-api Aisensy Controller] Received sendMessage request:', req.body);
   try {
-    const { to, type, template, text } = req.body;
+    const { to, type, template, text, recipient_type } = req.body;
     if (!to || !type) {
       return res.status(400).json({ success: false, message: 'to and type are required' });
     }
     const user_id = req.body.user_id || req.query.user_id;
-    const result = await aisensyService.sendMessage({ to, type, template, text, user_id });
+    const result = await aisensyService.sendMessage({ to, type, template, text, user_id, recipient_type });
     console.log('[wapi-api Aisensy Controller] sendMessage success');
     return res.status(200).json(result);
   } catch (error) {

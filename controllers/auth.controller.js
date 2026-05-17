@@ -424,6 +424,13 @@ export const login = async (req, res) => {
 
     await User.findByIdAndUpdate(user._id, { last_login: new Date() });
 
+    // Auto-update AiSensy webhook if enabled
+    if (process.env.AUTO_UPDATE_WEBHOOK_ON_LOGIN === 'true') {
+      import('../middlewares/auto-update-webhook.js').then(module => {
+        module.updateWebhookAfterLogin({ user }, res, () => {});
+      }).catch(err => console.error('Error importing webhook updater:', err));
+    }
+
     return res.status(200).json({
       success: true,
       message: 'Login successful',
