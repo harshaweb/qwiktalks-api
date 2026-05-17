@@ -124,27 +124,35 @@ export default class AisensyProvider {
       const messageId = result.message_id || result.data?.message_id || result.messages?.[0]?.id || result.data?.messages?.[0]?.id || null;
       const senderNumber = params.whatsappPhoneNumber?.display_phone_number || connection?.display_phone_number || '';
 
+      // Save message to database
+      let savedMessage = null;
       if (!fromCampaignSystem) {
-        await Message.create({
-          sender_number: senderNumber,
-          user_id: userId,
-          recipient_number: recipientNumber,
-          contact_id: contact?._id || contactId,
-          content: messageText || `${messageType}: ${templateName || 'media'}`,
-          message_type: messageType,
-          file_url: (messageType === 'image' || messageType === 'document') ? (file?.path || mediaUrl) : null,
-          from_me: true,
-          direction: 'outbound',
-          wa_message_id: messageId,
-          wa_timestamp: new Date(),
-          metadata: result,
-          provider: 'aisensy'
-        });
+        try {
+          savedMessage = await Message.create({
+            sender_number: senderNumber,
+            user_id: userId,
+            recipient_number: recipientNumber,
+            contact_id: contact?._id || contactId,
+            content: messageText || `${messageType}: ${templateName || 'media'}`,
+            message_type: messageType,
+            file_url: (messageType === 'image' || messageType === 'document') ? (file?.path || mediaUrl) : null,
+            from_me: true,
+            direction: 'outbound',
+            wa_message_id: messageId,
+            wa_timestamp: new Date(),
+            metadata: result,
+            provider: 'aisensy'
+          });
+          console.log('[AiSensy Provider] Message saved to database:', savedMessage._id);
+        } catch (dbError) {
+          console.error('[AiSensy Provider] Error saving message to database:', dbError);
+          // Continue even if database save fails - message was sent successfully
+        }
       }
 
       return {
-        id: messageId,
-        messageId: messageId,
+        id: savedMessage?._id || messageId,
+        messageId: savedMessage?._id || messageId,
         waMessageId: messageId,
         recipientNumber,
         messageType,
