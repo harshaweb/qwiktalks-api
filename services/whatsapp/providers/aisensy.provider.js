@@ -116,41 +116,47 @@ export default class AisensyProvider {
 
     console.log('[AiSensy Provider] Sending message with payload:', JSON.stringify(payload, null, 2));
 
-    const result = await aisensyService.sendMessage(payload);
+    try {
+      const result = await aisensyService.sendMessage(payload);
 
-    console.log('[AiSensy Provider] Message sent, result:', JSON.stringify(result, null, 2));
+      console.log('[AiSensy Provider] Message sent, result:', JSON.stringify(result, null, 2));
 
-    const messageId = result.message_id || result.data?.message_id || result.messages?.[0]?.id || result.data?.messages?.[0]?.id || null;
-    const senderNumber = params.whatsappPhoneNumber?.display_phone_number || connection?.display_phone_number || '';
+      const messageId = result.message_id || result.data?.message_id || result.messages?.[0]?.id || result.data?.messages?.[0]?.id || null;
+      const senderNumber = params.whatsappPhoneNumber?.display_phone_number || connection?.display_phone_number || '';
 
-    if (!fromCampaignSystem) {
-      await Message.create({
-        sender_number: senderNumber,
-        user_id: userId,
-        recipient_number: recipientNumber,
-        contact_id: contact?._id || contactId,
-        content: messageText || `${messageType}: ${templateName || 'media'}`,
-        message_type: messageType,
-        file_url: (messageType === 'image' || messageType === 'document') ? (file?.path || mediaUrl) : null,
-        from_me: true,
-        direction: 'outbound',
-        wa_message_id: messageId,
-        wa_timestamp: new Date(),
-        metadata: result,
+      if (!fromCampaignSystem) {
+        await Message.create({
+          sender_number: senderNumber,
+          user_id: userId,
+          recipient_number: recipientNumber,
+          contact_id: contact?._id || contactId,
+          content: messageText || `${messageType}: ${templateName || 'media'}`,
+          message_type: messageType,
+          file_url: (messageType === 'image' || messageType === 'document') ? (file?.path || mediaUrl) : null,
+          from_me: true,
+          direction: 'outbound',
+          wa_message_id: messageId,
+          wa_timestamp: new Date(),
+          metadata: result,
+          provider: 'aisensy'
+        });
+      }
+
+      return {
+        id: messageId,
+        messageId: messageId,
+        waMessageId: messageId,
+        recipientNumber,
+        messageType,
+        timestamp: new Date(),
+        apiResponse: result,
         provider: 'aisensy'
-      });
+      };
+    } catch (error) {
+      console.error('[AiSensy Provider] Error sending message:', error);
+      console.error('[AiSensy Provider] Error details:', error.message, error.status, error.data);
+      throw error;
     }
-
-    return {
-      id: messageId,
-      messageId: messageId,
-      waMessageId: messageId,
-      recipientNumber,
-      messageType,
-      timestamp: new Date(),
-      apiResponse: result,
-      provider: 'aisensy'
-    };
   }
 
   async getMessages(userId, contactNumber, connection = null, options = {}) {

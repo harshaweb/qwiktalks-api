@@ -179,7 +179,15 @@ class AisensyForwardingService {
     const data = await response.json();
     console.log('[wapi-api Aisensy Service] sendMessage response:', response.status, JSON.stringify(data));
 
+    // Check if the response indicates success in the data, even if HTTP status is not ok
+    if (data.success === true) {
+      console.log('[wapi-api Aisensy Service] Message sent successfully (data.success=true)');
+      return data;
+    }
+
+    // If response is not ok and data doesn't indicate success, throw error
     if (!response.ok) {
+      console.error('[wapi-api Aisensy Service] sendMessage failed:', response.status, data);
       const error = new Error(data.message || data.error || 'Failed to send message');
       error.status = response.status;
       error.data = data;
