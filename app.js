@@ -292,7 +292,7 @@ app.post("/webhook/whatsapp", (req, res) => {
   const change = req.body.entry?.[0]?.changes?.[0];
   const messages = change?.value?.messages;
 
-  console.log("Messages:", messages[0].errors);
+  console.log("Messages:", messages?.[0]?.errors);
 
   if (value?.statuses) {
 

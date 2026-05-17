@@ -72,6 +72,14 @@ import('./services/whatsapp/unified-whatsapp.service.js').then(module => {
 
 io.on('connection', (socket) => {
   console.log('WebSocket client connected:', socket.id);
+
+  socket.on('join-room', (userId) => {
+    if (userId) {
+      socket.join(userId.toString());
+      console.log(`Socket ${socket.id} joined room: ${userId}`);
+    }
+  });
+
   socket.on('disconnect', () => {
  
   });

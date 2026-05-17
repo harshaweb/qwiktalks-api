@@ -246,7 +246,7 @@ export const handleIncomingMessage = async (req, res, io = null) => {
         }
       }
 
-      io.emit('whatsapp:message', formattedMessage);
+      io.to(whatsappPhoneNumber.user_id.toString()).emit('whatsapp:message', formattedMessage);
     }
 
     try {
