@@ -365,41 +365,53 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    const result = await unifiedWhatsAppService.sendMessage(senderId, {
-      contactId,
-      whatsappPhoneNumberId,
-      whatsappPhoneNumber,
-      messageText,
-      file: uploadedFile,
-      messageType,
-      interactiveType,
-      buttonParams,
-      listParams,
-      templateName,
-      languageCode,
-      templateComponents: templateComponentsInput,
-      templateVariables,
-      providerType: provider,
-      connectionId,
-      mediaUrl: uploadedFile ? uploadedFile.path : ((mediaUrls && mediaUrls.length === 1) ? mediaUrls[0] : mediaUrl),
-      locationParams: messageType === 'location' && location ? {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        name: location.name || undefined,
-        address: location.address || undefined
-      } : undefined,
-      replyMessageId,
-      reactionMessageId,
-      reactionEmoji,
-      couponCode: coupon_code,
-      carouselCardsData: resolvedCarouselCardsData,
-      carouselProducts,
-      templateId: templateIdInput || undefined
-    });
+    let result;
+    try {
+      result = await unifiedWhatsAppService.sendMessage(senderId, {
+        contactId,
+        whatsappPhoneNumberId,
+        whatsappPhoneNumber,
+        messageText,
+        file: uploadedFile,
+        messageType,
+        interactiveType,
+        buttonParams,
+        listParams,
+        templateName,
+        languageCode,
+        templateComponents: templateComponentsInput,
+        templateVariables,
+        providerType: provider,
+        connectionId,
+        mediaUrl: uploadedFile ? uploadedFile.path : ((mediaUrls && mediaUrls.length === 1) ? mediaUrls[0] : mediaUrl),
+        locationParams: messageType === 'location' && location ? {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          name: location.name || undefined,
+          address: location.address || undefined
+        } : undefined,
+        replyMessageId,
+        reactionMessageId,
+        reactionEmoji,
+        couponCode: coupon_code,
+        carouselCardsData: resolvedCarouselCardsData,
+        carouselProducts,
+        templateId: templateIdInput || undefined
+      });
+    } catch (sendError) {
+      console.error('Error sending message via provider:', sendError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to send message',
+        details: sendError.message
+      });
+    }
 
+    // Message was sent successfully, now try to get the saved message details
     let messageId = result.id || result.messageId;
 
     if (!messageId) {
+      console.log('[SendMessage] No message ID returned, but message sent successfully');
       return res.json({
         success: true,
         message: 'Message sent successfully',
@@ -407,13 +419,24 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    const savedMessage = await Message.findById(messageId).lean();
+    // Try to fetch the saved message from database
+    let savedMessage = null;
+    try {
+      savedMessage = await Message.findById(messageId).lean();
+    } catch (dbError) {
+      console.error('[SendMessage] Error fetching message from database:', dbError);
+      // Continue - message was sent successfully even if we can't fetch it
+    }
 
     if (!savedMessage) {
+      console.log('[SendMessage] Message not found in database, but message sent successfully');
       return res.json({
         success: true,
         message: 'Message sent successfully',
-        data: result
+        data: {
+          id: messageId,
+          ...result
+        }
       });
     }
 
@@ -445,10 +468,10 @@ export const sendMessage = async (req, res) => {
       data: formattedResponse
     });
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('Unexpected error in sendMessage controller:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to send message',
+      error: 'An unexpected error occurred',
       details: error.message
     });
   }
