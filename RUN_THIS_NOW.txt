@@ -1,0 +1,29 @@
+========================================
+🚨 RUN THIS COMMAND ON YOUR SERVER NOW
+========================================
+
+Copy and paste this single command:
+
+mongo wapi --eval 'db.whatsapp_wabas.updateMany({ user_id: ObjectId("6a03008bf542cc0960006058") }, { $set: { provider: "aisensy" } })' && pm2 restart qwiktalks-api && echo "✅ Done! Now try sending a message."
+
+========================================
+
+This command will:
+1. Update the provider to "aisensy" in the database
+2. Restart qwiktalks-api
+3. Your messages should now work!
+
+========================================
+After running, check logs:
+========================================
+
+pm2 logs qwiktalks-api --lines 50 | grep -i aisensy
+
+You should see:
+✅ [AiSensy Provider] Sending message with payload: {...}
+✅ [wapi-api Aisensy Service] Forwarding sendMessage
+
+NOT:
+❌ at BusinessAPIProvider.sendWhatsAppAPIMessage
+
+========================================
