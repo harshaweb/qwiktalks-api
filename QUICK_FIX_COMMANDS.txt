@@ -1,0 +1,54 @@
+===========================================
+🚀 QUICK FIX - Run These Commands on Server
+===========================================
+
+# 1. Fix aisency-api duplicate declaration
+cd /root/aisency/aisency-api && cp index.js index.js.backup && sed -i '96d' index.js && sed -i '142d' index.js && pm2 restart aisency-api
+
+# 2. Update user's provider to aisensy
+mongo wapi --eval 'db.whatsapp_wabas.updateMany({ user_id: ObjectId("6a03008bf542cc0960006058") }, { $set: { provider: "aisensy" } })'
+
+# 3. Restart wapi-api
+pm2 restart qwiktalks-api
+
+# 4. Check logs
+pm2 logs --lines 30
+
+===========================================
+✅ After running these commands:
+===========================================
+
+1. aisency-api should start without errors
+2. Messages should send via AiSensy (not Business API)
+3. No more "permission denied" errors
+
+===========================================
+🔍 Verify the fix:
+===========================================
+
+# Check aisency-api is running
+curl http://localhost:5001/
+
+# Check user's provider
+mongo wapi --eval 'db.whatsapp_wabas.findOne({ user_id: ObjectId("6a03008bf542cc0960006058") })'
+
+# Should show: provider: "aisensy"
+
+===========================================
+📝 Manual Fix (if sed doesn't work):
+===========================================
+
+cd /root/aisency/aisency-api
+nano index.js
+
+Find and remove these TWO lines:
+- Line 96: const sendMessageRoutes = require('./routes/message/send_message');
+- Line 143: app.use('/aisensy', sendMessageRoutes);
+
+Keep only the FIRST occurrence of each.
+
+Save: Ctrl+X, Y, Enter
+
+pm2 restart aisency-api
+
+===========================================
