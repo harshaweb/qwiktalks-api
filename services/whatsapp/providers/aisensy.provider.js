@@ -13,7 +13,8 @@ export default class AisensyProvider {
       mediaUrl,
       replyMessageId,
       contactId,
-      fromCampaignSystem
+      fromCampaignSystem,
+      file
     } = params;
 
     let contact = null;
@@ -39,6 +40,8 @@ export default class AisensyProvider {
     }
 
     let payload;
+    
+    // Handle template messages
     if (messageType === 'template' && templateName) {
       payload = {
         to: recipientNumber,
@@ -57,7 +60,48 @@ export default class AisensyProvider {
       if (templateComponents && templateComponents.length > 0) {
         payload.template.components = templateComponents;
       }
-    } else if (messageType === 'text' || (!messageType && !templateName)) {
+    } 
+    // Handle image messages
+    else if (messageType === 'image') {
+      const imageUrl = file?.path || mediaUrl;
+      if (!imageUrl) {
+        throw new Error('Image URL or file is required for image messages');
+      }
+      
+      payload = {
+        to: recipientNumber,
+        type: 'image',
+        user_id: userId,
+        recipient_type: 'individual',
+        image: {
+          link: imageUrl,
+          caption: messageText || ''
+        }
+      };
+    }
+    // Handle document messages
+    else if (messageType === 'document') {
+      const documentUrl = file?.path || mediaUrl;
+      if (!documentUrl) {
+        throw new Error('Document URL or file is required for document messages');
+      }
+      
+      const filename = file?.originalname || params.filename || 'document.pdf';
+      
+      payload = {
+        to: recipientNumber,
+        type: 'document',
+        user_id: userId,
+        recipient_type: 'individual',
+        document: {
+          link: documentUrl,
+          filename: filename,
+          caption: messageText || ''
+        }
+      };
+    }
+    // Handle text messages (default)
+    else if (messageType === 'text' || (!messageType && !templateName)) {
       payload = {
         to: recipientNumber,
         type: 'text',
@@ -65,13 +109,18 @@ export default class AisensyProvider {
         recipient_type: 'individual',
         text: { body: messageText || '' }
       };
-    } else {
+    } 
+    else {
       throw new Error(`Unsupported message type for AiSensy: ${messageType}`);
     }
 
+    console.log('[AiSensy Provider] Sending message with payload:', JSON.stringify(payload, null, 2));
+
     const result = await aisensyService.sendMessage(payload);
 
-    const messageId = result.messages?.[0]?.id || result.data?.messages?.[0]?.id || null;
+    console.log('[AiSensy Provider] Message sent, result:', JSON.stringify(result, null, 2));
+
+    const messageId = result.message_id || result.data?.message_id || result.messages?.[0]?.id || result.data?.messages?.[0]?.id || null;
     const senderNumber = params.whatsappPhoneNumber?.display_phone_number || connection?.display_phone_number || '';
 
     if (!fromCampaignSystem) {
@@ -80,8 +129,9 @@ export default class AisensyProvider {
         user_id: userId,
         recipient_number: recipientNumber,
         contact_id: contact?._id || contactId,
-        content: messageText || `Template: ${templateName}`,
+        content: messageText || `${messageType}: ${templateName || 'media'}`,
         message_type: messageType,
+        file_url: (messageType === 'image' || messageType === 'document') ? (file?.path || mediaUrl) : null,
         from_me: true,
         direction: 'outbound',
         wa_message_id: messageId,
@@ -92,6 +142,7 @@ export default class AisensyProvider {
     }
 
     return {
+      id: messageId,
       messageId: messageId,
       waMessageId: messageId,
       recipientNumber,
