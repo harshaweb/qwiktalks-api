@@ -492,6 +492,32 @@ class AisensyForwardingService {
     return data;
   }
 
+  async updateWebhook(userId, webhookUrl) {
+    const targetUrl = `${AISENCY_API_BASE_URL}/aisensy/settings/webhook`;
+    console.log('[wapi-api Aisensy Service] Forwarding updateWebhook:', targetUrl, 'URL:', webhookUrl);
+
+    const response = await fetch(targetUrl, {
+      method: 'PATCH',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ user_id: userId, webhook_url: webhookUrl })
+    });
+
+    const data = await response.json();
+    console.log('[wapi-api Aisensy Service] updateWebhook response:', response.status);
+
+    if (!response.ok) {
+      const error = new Error(data.message || data.error || 'Failed to update webhook');
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+
+    return data;
+  }
+
   async submitFacebookAccessToken(payload) {
     const targetUrl = `${AISENCY_API_BASE_URL}/aisensy/submit-facebook-access-token`;
     console.log('[wapi-api Aisensy Service] Forwarding submitFacebookAccessToken:', targetUrl);

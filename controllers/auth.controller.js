@@ -426,8 +426,17 @@ export const login = async (req, res) => {
 
     // Auto-update AiSensy webhook if enabled
     if (process.env.AUTO_UPDATE_WEBHOOK_ON_LOGIN === 'true') {
-      import('../middlewares/auto-update-webhook.js').then(module => {
-        module.updateWebhookAfterLogin({ user }, res, () => {});
+      import('../services/aisensy-webhook-updater.service.js').then(module => {
+        const webhookUpdater = module.default;
+        webhookUpdater.updateWebhookForUser(user)
+          .then(result => {
+            if (result.success) {
+              console.log(`✅ Auto-updated webhook for user: ${user.email}`);
+            } else {
+              console.error(`❌ Failed to auto-update webhook for user: ${user.email}`, result.error);
+            }
+          })
+          .catch(err => console.error('Error updating webhook:', err));
       }).catch(err => console.error('Error importing webhook updater:', err));
     }
 

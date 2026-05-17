@@ -100,6 +100,41 @@ export default class AisensyProvider {
         }
       };
     }
+    // Handle audio messages
+    else if (messageType === 'audio') {
+      const audioUrl = file?.path || mediaUrl;
+      if (!audioUrl) {
+        throw new Error('Audio URL or file is required for audio messages');
+      }
+      
+      payload = {
+        to: recipientNumber,
+        type: 'audio',
+        user_id: userId,
+        recipient_type: 'individual',
+        audio: {
+          link: audioUrl
+        }
+      };
+    }
+    // Handle video messages
+    else if (messageType === 'video') {
+      const videoUrl = file?.path || mediaUrl;
+      if (!videoUrl) {
+        throw new Error('Video URL or file is required for video messages');
+      }
+      
+      payload = {
+        to: recipientNumber,
+        type: 'video',
+        user_id: userId,
+        recipient_type: 'individual',
+        video: {
+          link: videoUrl,
+          caption: messageText || ''
+        }
+      };
+    }
     // Handle text messages (default)
     else if (messageType === 'text' || (!messageType && !templateName)) {
       payload = {
@@ -135,7 +170,7 @@ export default class AisensyProvider {
             contact_id: contact?._id || contactId,
             content: messageText || `${messageType}: ${templateName || 'media'}`,
             message_type: messageType,
-            file_url: (messageType === 'image' || messageType === 'document') ? (file?.path || mediaUrl) : null,
+            file_url: (['image', 'document', 'audio', 'video'].includes(messageType)) ? (file?.path || mediaUrl) : null,
             from_me: true,
             direction: 'outbound',
             wa_message_id: messageId,

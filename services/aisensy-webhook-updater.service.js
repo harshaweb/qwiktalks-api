@@ -3,12 +3,10 @@
  * Updates webhook URL for all AiSensy users
  */
 
-import axios from 'axios';
+import aisensyService from '../aisency/aisensy.service.js';
 import db from '../models/index.js';
 
 const AISENSY_WEBHOOK_URL = process.env.AISENSY_WEBHOOK_URL || 'https://api.qwiktalks.com/webhook/whatsapp';
-const AISENSY_API_BASE = process.env.AISENSY_DIRECT_BASE_URL || 'https://backend.aisensy.com';
-const AISENCY_API_BASE_URL = process.env.AISENCY_API_URL || 'http://localhost:5001';
 
 class AiSensyWebhookUpdater {
   /**
@@ -18,43 +16,32 @@ class AiSensyWebhookUpdater {
    */
   async updateWebhookForUser(user) {
     try {
-      // Get user's AiSensy token via aisency-api
-      const token = await this.getUserTokenViaAisencyAPI(user._id || user.id);
-      
-      if (!token) {
+      const userId = user._id || user.id;
+      const userEmail = user.email;
+
+      console.log(`[Webhook Updater] Updating webhook for user: ${userEmail} (${userId})`);
+
+      // Use the aisensy service to update webhook
+      const result = await aisensyService.updateWebhook(userId.toString(), AISENSY_WEBHOOK_URL);
+
+      if (result.success) {
+        console.log(`✅ Webhook updated for user: ${userEmail}`);
+        return {
+          success: true,
+          user_id: userId,
+          email: userEmail,
+          webhook_url: AISENSY_WEBHOOK_URL,
+          response: result.data
+        };
+      } else {
+        console.error(`❌ Failed to update webhook for user: ${userEmail}`, result.error);
         return {
           success: false,
-          user_id: user._id,
-          email: user.email,
-          error: 'No AiSensy token found'
+          user_id: userId,
+          email: userEmail,
+          error: result.error || result.message
         };
       }
-
-      // Update webhook
-      const response = await axios.patch(
-        `${AISENSY_API_BASE}/direct-apis/t1/settings/update-webhook`,
-        {
-          webhooks: {
-            url: AISENSY_WEBHOOK_URL
-          }
-        },
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      console.log(`✅ Webhook updated for user: ${user.email}`);
-      
-      return {
-        success: true,
-        user_id: user._id,
-        email: user.email,
-        response: response.data
-      };
 
     } catch (error) {
       console.error(`❌ Failed to update webhook for user: ${user.email}`, error.message);
@@ -63,37 +50,8 @@ class AiSensyWebhookUpdater {
         success: false,
         user_id: user._id,
         email: user.email,
-        error: error.response?.data || error.message
+        error: error.message
       };
-    }
-  }
-
-  /**
-   * Get AiSensy token via aisency-api service
-   * @param {String} userId - User ID
-   * @returns {String} AiSensy token
-   */
-  async getUserTokenViaAisencyAPI(userId) {
-    try {
-      // Call aisency-api to get the token
-      const response = await axios.get(
-        `${AISENCY_API_BASE_URL}/aisensy/get-token?user_id=${userId}`,
-        {
-          headers: {
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      if (response.data && response.data.token) {
-        return response.data.token;
-      }
-
-      return null;
-
-    } catch (error) {
-      console.error(`Error getting token via aisency-api for user ${userId}:`, error.message);
-      return null;
     }
   }
 
