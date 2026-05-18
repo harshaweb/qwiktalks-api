@@ -231,8 +231,19 @@ export default class BusinessAPIProvider extends BaseProvider {
 
     const responseData = await response.json();
     if (!response.ok) {
+      const errorCode = responseData.error?.code;
       const errorMessage = responseData.error?.message || responseData.error?.error_data?.details || JSON.stringify(responseData);
       console.error('WhatsApp API error response:', JSON.stringify(responseData, null, 2));
+      if (errorCode === 10) {
+        throw new Error(
+          'Your WhatsApp access token does not have the required permissions. Please regenerate a System User token with "whatsapp_business_messaging" permission from Meta Business Manager and update it in Connect WABA settings.'
+        );
+      }
+      if (errorCode === 190) {
+        throw new Error(
+          'Your WhatsApp access token has expired or is invalid. Please regenerate a System User token from Meta Business Manager and update it in Connect WABA settings.'
+        );
+      }
       throw new Error(
         `WhatsApp API error (${response.status}): ${errorMessage}`
       );

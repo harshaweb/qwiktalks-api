@@ -367,7 +367,7 @@ export const sendMessage = async (req, res) => {
 
     let result;
     try {
-      result = await unifiedWhatsAppService.sendMessage(senderId, {
+      result = await unifiedWhatsAppService.sendMessage(userId, {
         contactId,
         whatsappPhoneNumberId,
         whatsappPhoneNumber,
