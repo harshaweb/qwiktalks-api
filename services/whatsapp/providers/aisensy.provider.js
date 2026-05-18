@@ -144,7 +144,20 @@ export default class AisensyProvider {
         recipient_type: 'individual',
         text: { body: messageText || '' }
       };
-    } 
+    }
+    // Handle reaction messages
+    else if (messageType === 'reaction') {
+      payload = {
+        to: recipientNumber,
+        type: 'reaction',
+        user_id: userId,
+        recipient_type: 'individual',
+        reaction: {
+          message_id: reactionMessageId,
+          emoji: reactionEmoji || ''
+        }
+      };
+    }
     else {
       throw new Error(`Unsupported message type for AiSensy: ${messageType}`);
     }
